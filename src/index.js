@@ -1,22 +1,25 @@
 const { PI, sin, cos, floor } = Math
+const WORD_VEC_LENGTH = 300
 
 const canvas = document.createElement('canvas')
 const ctx = canvas.getContext('2d')
-const state = {}
+const state = {
+  accumWordWeight: new Float32Array(WORD_VEC_LENGTH)
+}
 
 function animate () {
   draw()
   window.requestAnimationFrame(animate)
 }
 
-// TODO: Fix end loop ... maybe something with wordVecLength?
+// TODO: Fix end loop ... maybe something with WORD_VEC_LENGTH?
 function draw () {
-  const wordVecLength = 300
-  const { width, height, data, vecOffset } = state
+  const { width, height, data, accumWordWeight, vecOffset } = state
   const { sentLengths, wordVectors } = data
-  const sentLength = sentLengths[state.sentIndex++]
+  const sentLength = 1//sentLengths[state.sentIndex++]
 
-  if (sentLength == null) {
+  // if (sentLength == null) {
+  if (++state.sentLength > wordVectors.length / WORD_VEC_LENGTH) {
     state.sentIndex = 0
     state.vecOffset = 0
     console.log('loop')
@@ -24,21 +27,35 @@ function draw () {
   }
 
   ctx.setTransform(1, 0, 0, 1, 0, 0)
-  ctx.globalAlpha = 0.01
+  ctx.globalAlpha = 0.05
   ctx.fillStyle = '#1b1a22'
   ctx.fillRect(0, 0, width, height)
   // ctx.clearRect(0, 0, width, height)
 
   ctx.translate(width / 2, height / 2)
-  ctx.globalAlpha = 0.4
+  ctx.globalAlpha = 0.8
   ctx.strokeStyle = '#ffffff'
   ctx.lineWidth = 1
 
-  const fullSentLength = sentLength * wordVecLength
+  const fullSentLength = sentLength * WORD_VEC_LENGTH
   state.vecOffset += fullSentLength
-  drawVector(wordVectors,
+
+  accumWordWeights(accumWordWeight, wordVectors,
     [vecOffset, vecOffset + fullSentLength],
-    [100, 300], 60)
+    0.1, 0.96)
+  drawVector(accumWordWeight,
+    [0, WORD_VEC_LENGTH],
+    [100, 300], 1)
+}
+
+function accumWordWeights(out, vec, valRange, weight=1, decay=1) {
+  const start = valRange[0]
+  const count = valRange[1] - start
+  for (let i = 0; i < count; i++) {
+    const index = start + i
+    out[i] += vec[index] * weight
+    out[i] *= decay
+  }
 }
 
 function drawVector (vec, valRange, radRange, interval=1) {
@@ -90,6 +107,7 @@ function fetchData () {
     }))
 }
 
+window.addEventListener('resize', resize, false)
 document.body.appendChild(canvas)
 resize()
 fetchData().then((data) => {
