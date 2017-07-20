@@ -8,6 +8,9 @@ const state = {
   loop: true,
   tick: -1,
 
+  grid: [130, 130],
+  position: [0, 0],
+
   clearColor: chroma('#1b1a22'),
   strokeColor: chroma.random().set('hsl.l', 0.8)
 }
@@ -25,33 +28,62 @@ function animate () {
 }
 
 function draw () {
-  const { width, height, tick, data } = state
-  const { sentLengths, peopleCoords } = data
+  const { width, height, tick, grid } = state
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  if (tick === 0) drawClearRect(width, height)
+
+  for (let i = 0; i < 20; i++) {
+    stepNextSentence()
+  }
+}
+
+function drawClearRect (width, height) {
+  ctx.globalAlpha = 1
+  ctx.fillStyle = state.clearColor.hex()
+  ctx.clearRect(0, 0, width, height)
+  ctx.fillRect(0, 0, width, height)
+}
+
+function stepNextSentence () {
+  const {
+    width, height, tick,
+    grid, position, sentLengths,
+    people, peopleCoords
+  } = state
   const sentIndex = state.sentIndex++
 
   if (sentIndex >= sentLengths.length - 1) {
-    state.sentIndex = 0
-    console.log('loop')
+    state.loop = false
+    console.log('stop')
     return
   }
 
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  position[0] = (sentIndex % grid[0]) * (width - 40) / (grid[0] - 1) + 20
+  position[1] = floor((sentIndex / grid[0]) % grid[1]) * (height - 40) / (grid[1] - 1) + 20
 
-  if (tick === 0) {
-    ctx.globalAlpha = 1
-    ctx.fillStyle = state.clearColor.hex()
-    ctx.clearRect(0, 0, width, height)
-    ctx.fillRect(0, 0, width, height)
-  }
+  ctx.strokeStyle = '#fff'
+  ctx.globalAlpha = 0.2
+  drawBaseCoord(position, 1)
 
-  ctx.translate(width / 2, height / 2)
-  ctx.rotate(tick * 0.001 * PI * 2)
+  let drawnPeople = 0
+  ctx.globalAlpha = 0.8
+  people.forEach((item) => {
+    const { coords, coordIndex, color } = item
+    const coord = coords[coordIndex]
+    if (!coord || sentIndex !== coord[0]) return
+    item.coordIndex++
+    ctx.strokeStyle = color.hex()
+    drawBaseCoord(position, 3 + drawnPeople++ * 2)
+  })
+}
 
-  ctx.globalCompositeOperation = 'overlay'
-  ctx.globalAlpha = 0.1
-  ctx.strokeStyle = state.strokeColor.hex()
-
-  drawCircle(mapLinear(10, 100, 80, 320, sentLengths[sentIndex]), 7)
+function drawBaseCoord (pos, radius) {
+  ctx.globalCompositeOperation = 'source-over'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.arc(pos[0], pos[1], radius, 0, PI * 2)
+  ctx.stroke()
 }
 
 function drawCircle (radius, precision) {
@@ -101,10 +133,22 @@ function fetchData () {
 document.body.appendChild(canvas)
 resize()
 fetchData().then((data) => {
-  console.log(data)
+  const { peopleCoords, sentLengths } = data
+  const people = Object.keys(peopleCoords)
+    .map((name) => {
+      const coords = peopleCoords[name]
+      return {
+        name,
+        coords,
+        coordIndex: 0,
+        color: chroma.random().set('hsl.l', 0.8)
+      }
+    })
   Object.assign(state, {
     sentIndex: 0,
-    data
+    sentLengths,
+    people,
+    peopleCoords: []
   })
   animate()
 })
