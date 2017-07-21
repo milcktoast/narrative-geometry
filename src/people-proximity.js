@@ -6,17 +6,21 @@ const { PI, abs, sin, cos, floor, random, round } = Math
 const canvas = document.createElement('canvas')
 const ctx = canvas.getContext('2d')
 
+const scratchVecA = vec2.create()
+const scratchVecB = vec2.create()
+
 const state = {
   loop: true,
   tick: -1,
   pixelRatio: 2,
 
   angle: 0,
-  radius: 1,
+  radius: 20,
   spacing: [60, 30],
   searchDist: 20,
   position: vec2.create(),
   positionPrev: vec2.create(),
+  normal: vec2.create(),
 
   clearColor: chroma('#1b1a22')
 }
@@ -80,7 +84,8 @@ function drawKey () {
 function stepNextSentence () {
   const {
     width, height, tick,
-    spacing, searchDist, position, positionPrev,
+    angle, radius,
+    spacing, searchDist, position, positionPrev, normal,
     sentLengths, people, peopleCoords, peoplePositions
   } = state
   const sentIndex = state.sentIndex++
@@ -92,24 +97,23 @@ function stepNextSentence () {
     return
   }
 
-  const { angle, radius } = state
-  const px = sin(angle) * radius
-  const py = cos(angle) * radius
   vec2.copy(positionPrev, position)
-  vec2.set(position, px, py)
+  vec2.set(position,
+    sin(angle) * radius,
+    cos(angle) * radius)
+  vec2.normalize(normal, position)
 
   ctx.globalCompositeOperation = 'source-over'
   ctx.globalAlpha = 0.2
   ctx.fillStyle = ctx.strokeStyle = '#fff'
-  lineWidth(1)
   drawCircleFill(position, 0.5)
-
-  ctx.globalAlpha = 0.01
-  drawPath([positionPrev, position])
 
   ctx.globalCompositeOperation = 'overlay'
   ctx.globalAlpha = 0.3
-  drawCircleStroke(position, 1)
+  lineWidth(1)
+  drawPath([positionPrev, position])
+  ctx.globalAlpha = 0.8
+  drawHash(position, normal, 2)
 
   let drawnPeople = 0
   people.forEach((item) => {
@@ -121,10 +125,10 @@ function stepNextSentence () {
     // Draw existence of entity
     ctx.globalCompositeOperation = 'overlay'
     ctx.globalAlpha = 0.9
-    ctx.fillStyle = color.hex()
+    ctx.fillStyle = ctx.strokeStyle = color.hex()
     lineWidth(1)
     drawCircleFill(position, 2 + drawnPeople * 2)
-    drawCircleStroke(position, 3 + drawnPeople * 2)
+    drawCircleStroke(position, 2 + drawnPeople * 2)
 
     // Draw connections to close entities (text coordinates)
     let radOffset = 0
@@ -133,12 +137,9 @@ function stepNextSentence () {
       const absDist = abs(dist)
       if (absDist < 0.1 || absDist > searchDist) return
 
-      ctx.globalAlpha = 0.3
+      ctx.globalAlpha = 0.5
       ctx.strokeStyle = color.hex()
       lineWidth(1)
-      // drawPath([position, citem.position])
-
-      ctx.globalAlpha = 0.5
       ctx.beginPath()
       ctx.arc(0, 0, radius + radOffset, citem.angle, angle, dist < 0)
       ctx.stroke()
@@ -199,6 +200,16 @@ function drawCircle (radius, precision) {
     else ctx.lineTo(x, y)
   }
   ctx.stroke()
+}
+
+function drawHash (pos, normal, size) {
+  const hashA = scratchVecA
+  const hashB = scratchVecB
+  vec2.scale(hashA, normal, -size)
+  vec2.scale(hashB, normal, size)
+  vec2.add(hashA, hashA, pos)
+  vec2.add(hashB, hashB, pos)
+  drawPath([hashA, hashB])
 }
 
 // Linear mapping from range <a1, a2> to range <b1, b2>
