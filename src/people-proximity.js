@@ -14,11 +14,11 @@ const state = {
   angle: 0,
   radius: 1,
   spacing: [60, 30],
+  searchDist: 20,
   position: vec2.create(),
   positionPrev: vec2.create(),
 
-  clearColor: chroma('#1b1a22'),
-  strokeColor: chroma.random().set('hsl.l', 0.8)
+  clearColor: chroma('#1b1a22')
 }
 
 function toggleLoop () {
@@ -63,12 +63,13 @@ function drawKey () {
 
   ctx.globalCompositeOperation = 'source-over'
   ctx.font = '8px monospace'
+  lineWidth(2)
   people.forEach((entity, i) => {
     const y = i * 8
     ctx.globalAlpha = 0.7
     ctx.strokeStyle = entity.color.hex()
-    drawCircleStroke([0, y], 2)
-    ctx.globalAlpha = 0.8
+    drawPath([[0, y - 3], [5, y + 2]])
+    ctx.globalAlpha = 0.6
     ctx.fillStyle = '#ffffff'
     ctx.fillText(entity.name, 8, y + 2)
   })
@@ -79,7 +80,7 @@ function drawKey () {
 function stepNextSentence () {
   const {
     width, height, tick,
-    spacing, position, positionPrev,
+    spacing, searchDist, position, positionPrev,
     sentLengths, people, peopleCoords, peoplePositions
   } = state
   const sentIndex = state.sentIndex++
@@ -100,7 +101,7 @@ function stepNextSentence () {
   ctx.globalCompositeOperation = 'source-over'
   ctx.globalAlpha = 0.2
   ctx.fillStyle = ctx.strokeStyle = '#fff'
-  ctx.lineWidth = 1
+  lineWidth(1)
   drawCircleFill(position, 0.5)
 
   ctx.globalAlpha = 0.01
@@ -121,7 +122,7 @@ function stepNextSentence () {
     ctx.globalCompositeOperation = 'overlay'
     ctx.globalAlpha = 0.9
     ctx.fillStyle = color.hex()
-    ctx.lineWidth = 1
+    lineWidth(1)
     drawCircleFill(position, 2 + drawnPeople * 2)
     drawCircleStroke(position, 3 + drawnPeople * 2)
 
@@ -129,12 +130,12 @@ function stepNextSentence () {
     let radOffset = 0
     peopleCoords.forEach((citem) => {
       const dist = coord[0] - citem.coord[0]
-      // const dist = vec2.distance(position, pos)
-      if (abs(dist) < 0.1 || dist > 20) return
+      const absDist = abs(dist)
+      if (absDist < 0.1 || absDist > searchDist) return
 
       ctx.globalAlpha = 0.3
       ctx.strokeStyle = color.hex()
-      ctx.lineWidth = 1
+      lineWidth(1)
       // drawPath([position, citem.position])
 
       ctx.globalAlpha = 0.5
@@ -157,10 +158,14 @@ function stepNextSentence () {
   const circumference = 2 * PI * radius
   const lenFactor = mapLinear(10, 60, 1, 10, sentLength)
   state.angle += (spacing[0] / circumference) * lenFactor * 0.2
-  state.radius += (spacing[1] / circumference) //* lenFactor * 0.2
+  state.radius += (spacing[1] / circumference)
 }
 
 // ..........
+
+function lineWidth (width) {
+  ctx.lineWidth = width / state.pixelRatio
+}
 
 function drawPath (points) {
   ctx.beginPath()
