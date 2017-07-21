@@ -1,7 +1,7 @@
 const chroma = require('chroma-js')
 const glMatrix = require('gl-matrix')
 const { vec2 } = glMatrix
-const { PI, abs, sin, cos, floor, random } = Math
+const { PI, abs, sin, cos, floor, random, round } = Math
 
 const canvas = document.createElement('canvas')
 const ctx = canvas.getContext('2d')
@@ -9,6 +9,7 @@ const ctx = canvas.getContext('2d')
 const state = {
   loop: true,
   tick: -1,
+  pixelRatio: 2,
 
   angle: 0,
   radius: 1,
@@ -33,10 +34,14 @@ function animate () {
 }
 
 function draw () {
-  const { width, height, tick } = state
+  const { width, height, pixelRatio, tick } = state
+  const scale = pixelRatio
 
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
-  if (tick === 0) drawClearRect(width, height)
+  ctx.setTransform(scale, 0, 0, scale, 0, 0)
+  if (tick === 0) {
+    drawClearRect(width, height)
+    drawKey()
+  }
 
   ctx.translate(width / 2, height / 2)
   for (let i = 0; i < 12; i++) {
@@ -49,6 +54,26 @@ function drawClearRect (width, height) {
   ctx.fillStyle = state.clearColor.hex()
   ctx.clearRect(0, 0, width, height)
   ctx.fillRect(0, 0, width, height)
+}
+
+function drawKey () {
+  const { width, height, people } = state
+  ctx.save()
+  ctx.translate(20, 20)
+
+  ctx.globalCompositeOperation = 'source-over'
+  ctx.font = '8px monospace'
+  people.forEach((entity, i) => {
+    const y = i * 8
+    ctx.globalAlpha = 0.7
+    ctx.strokeStyle = entity.color.hex()
+    drawCircleStroke([0, y], 2)
+    ctx.globalAlpha = 0.8
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText(entity.name, 8, y + 2)
+  })
+
+  ctx.restore()
 }
 
 function stepNextSentence () {
@@ -110,7 +135,7 @@ function stepNextSentence () {
       ctx.globalAlpha = 0.3
       ctx.strokeStyle = color.hex()
       ctx.lineWidth = 1
-      drawPath([position, citem.position])
+      // drawPath([position, citem.position])
 
       ctx.globalAlpha = 0.5
       ctx.beginPath()
@@ -130,8 +155,9 @@ function stepNextSentence () {
   })
 
   const circumference = 2 * PI * radius
-  state.angle += spacing[0] / circumference
-  state.radius += spacing[1] / circumference
+  const lenFactor = mapLinear(10, 60, 1, 10, sentLength)
+  state.angle += (spacing[0] / circumference) * lenFactor * 0.2
+  state.radius += (spacing[1] / circumference) //* lenFactor * 0.2
 }
 
 // ..........
@@ -176,16 +202,21 @@ function mapLinear (a1, a2, b1, b2, x) {
 }
 
 function resize () {
+  const { pixelRatio } = state
   const width = window.innerWidth
   const height = window.innerHeight
+
   state.width = width
   state.height = height
-  canvas.width = width
-  canvas.height = height
+  canvas.width = round(width * pixelRatio)
+  canvas.height = round(height * pixelRatio)
+
   Object.assign(canvas.style, {
     position: 'absolute',
     top: 0,
-    left: 0
+    left: 0,
+    width: width + 'px',
+    height: height + 'px'
   })
 }
 
