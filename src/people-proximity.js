@@ -1,5 +1,7 @@
 const chroma = require('chroma-js')
-const { PI, sin, cos, floor, random } = Math
+const glMatrix = require('gl-matrix')
+const { vec2 } = glMatrix
+const { PI, abs, sin, cos, floor, random } = Math
 
 const canvas = document.createElement('canvas')
 const ctx = canvas.getContext('2d')
@@ -10,8 +12,9 @@ const state = {
 
   angle: 0,
   radius: 1,
-  spacing: [40, 20],
-  position: [0, 0],
+  spacing: [60, 30],
+  position: vec2.create(),
+  positionPrev: vec2.create(),
 
   clearColor: chroma('#1b1a22'),
   strokeColor: chroma.random().set('hsl.l', 0.8)
@@ -36,7 +39,7 @@ function draw () {
   if (tick === 0) drawClearRect(width, height)
 
   ctx.translate(width / 2, height / 2)
-  for (let i = 0; i < 1; i++) {
+  for (let i = 0; i < 12; i++) {
     stepNextSentence()
   }
 }
@@ -51,10 +54,11 @@ function drawClearRect (width, height) {
 function stepNextSentence () {
   const {
     width, height, tick,
-    spacing, position, sentLengths,
-    people, peopleCoords
+    spacing, position, positionPrev,
+    sentLengths, people, peopleCoords, peoplePositions
   } = state
   const sentIndex = state.sentIndex++
+  const sentLength = sentLengths[sentIndex]
 
   if (sentIndex >= sentLengths.length - 1) {
     state.loop = false
@@ -63,22 +67,66 @@ function stepNextSentence () {
   }
 
   const { angle, radius } = state
-  position[0] = sin(angle) * radius
-  position[1] = cos(angle) * radius
+  const px = sin(angle) * radius
+  const py = cos(angle) * radius
+  vec2.copy(positionPrev, position)
+  vec2.set(position, px, py)
 
-  ctx.strokeStyle = '#fff'
+  ctx.globalCompositeOperation = 'source-over'
   ctx.globalAlpha = 0.2
-  drawBaseCoord(position, 1)
+  ctx.fillStyle = ctx.strokeStyle = '#fff'
+  ctx.lineWidth = 1
+  drawCircleFill(position, 0.5)
+
+  ctx.globalAlpha = 0.01
+  drawPath([positionPrev, position])
+
+  ctx.globalCompositeOperation = 'overlay'
+  ctx.globalAlpha = 0.3
+  drawCircleStroke(position, 1)
 
   let drawnPeople = 0
-  ctx.globalAlpha = 0.8
   people.forEach((item) => {
     const { coords, coordIndex, color } = item
     const coord = coords[coordIndex]
     if (!coord || sentIndex !== coord[0]) return
     item.coordIndex++
-    ctx.strokeStyle = color.hex()
-    drawBaseCoord(position, 3 + drawnPeople++ * 2)
+
+    // Draw existence of entity
+    ctx.globalCompositeOperation = 'overlay'
+    ctx.globalAlpha = 0.9
+    ctx.fillStyle = color.hex()
+    ctx.lineWidth = 1
+    drawCircleFill(position, 2 + drawnPeople * 2)
+    drawCircleStroke(position, 3 + drawnPeople * 2)
+
+    // Draw connections to close entities (text coordinates)
+    let radOffset = 0
+    peopleCoords.forEach((citem) => {
+      const dist = coord[0] - citem.coord[0]
+      // const dist = vec2.distance(position, pos)
+      if (abs(dist) < 0.1 || dist > 20) return
+
+      ctx.globalAlpha = 0.3
+      ctx.strokeStyle = color.hex()
+      ctx.lineWidth = 1
+      drawPath([position, citem.position])
+
+      ctx.globalAlpha = 0.5
+      ctx.beginPath()
+      ctx.arc(0, 0, radius + radOffset, citem.angle, angle, dist < 0)
+      ctx.stroke()
+
+      radOffset += 2
+    })
+
+    peopleCoords.push({
+      coord,
+      angle,
+      radius,
+      position: vec2.clone(position)
+    })
+    drawnPeople++
   })
 
   const circumference = 2 * PI * radius
@@ -86,12 +134,28 @@ function stepNextSentence () {
   state.radius += spacing[1] / circumference
 }
 
-function drawBaseCoord (pos, radius) {
-  ctx.globalCompositeOperation = 'source-over'
-  ctx.lineWidth = 1
+// ..........
+
+function drawPath (points) {
+  ctx.beginPath()
+  for (let i = 0; i < points.length; i++) {
+    const point = points[i]
+    if (i === 0) ctx.moveTo(point[0], point[1])
+    else ctx.lineTo(point[0], point[1])
+  }
+  ctx.stroke()
+}
+
+function drawCircleStroke (pos, radius) {
   ctx.beginPath()
   ctx.arc(pos[0], pos[1], radius, 0, PI * 2)
   ctx.stroke()
+}
+
+function drawCircleFill (pos, radius) {
+  ctx.beginPath()
+  ctx.arc(pos[0], pos[1], radius, 0, PI * 2)
+  ctx.fill()
 }
 
 function drawCircle (radius, precision) {
@@ -138,6 +202,8 @@ function fetchData () {
     }))
 }
 
+// ..........
+
 document.body.appendChild(canvas)
 resize()
 fetchData().then((data) => {
@@ -156,7 +222,8 @@ fetchData().then((data) => {
     sentIndex: 0,
     sentLengths,
     people,
-    peopleCoords: []
+    peopleCoords: [],
+    peoplePositions: []
   })
   animate()
 })
