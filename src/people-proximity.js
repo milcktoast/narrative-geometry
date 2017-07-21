@@ -8,7 +8,9 @@ const state = {
   loop: true,
   tick: -1,
 
-  grid: [130, 130],
+  angle: 0,
+  radius: 1,
+  spacing: [40, 20],
   position: [0, 0],
 
   clearColor: chroma('#1b1a22'),
@@ -28,12 +30,13 @@ function animate () {
 }
 
 function draw () {
-  const { width, height, tick, grid } = state
+  const { width, height, tick } = state
 
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   if (tick === 0) drawClearRect(width, height)
 
-  for (let i = 0; i < 20; i++) {
+  ctx.translate(width / 2, height / 2)
+  for (let i = 0; i < 1; i++) {
     stepNextSentence()
   }
 }
@@ -48,7 +51,7 @@ function drawClearRect (width, height) {
 function stepNextSentence () {
   const {
     width, height, tick,
-    grid, position, sentLengths,
+    spacing, position, sentLengths,
     people, peopleCoords
   } = state
   const sentIndex = state.sentIndex++
@@ -59,8 +62,9 @@ function stepNextSentence () {
     return
   }
 
-  position[0] = (sentIndex % grid[0]) * (width - 40) / (grid[0] - 1) + 20
-  position[1] = floor((sentIndex / grid[0]) % grid[1]) * (height - 40) / (grid[1] - 1) + 20
+  const { angle, radius } = state
+  position[0] = sin(angle) * radius
+  position[1] = cos(angle) * radius
 
   ctx.strokeStyle = '#fff'
   ctx.globalAlpha = 0.2
@@ -76,6 +80,10 @@ function stepNextSentence () {
     ctx.strokeStyle = color.hex()
     drawBaseCoord(position, 3 + drawnPeople++ * 2)
   })
+
+  const circumference = 2 * PI * radius
+  state.angle += spacing[0] / circumference
+  state.radius += spacing[1] / circumference
 }
 
 function drawBaseCoord (pos, radius) {
